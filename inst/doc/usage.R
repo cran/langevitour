@@ -13,5 +13,7 @@ completePenguins
 
 scale <- apply(completePenguins[,-1], 2, sd)*4
 
-langevitour(completePenguins[,-1], completePenguins$species, scale=scale, pointSize=2)
+langevitour(
+    completePenguins[,-1], completePenguins$species, 
+    scale=scale, pointSize=2, elementId="myWidget")
 

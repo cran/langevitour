@@ -11,6 +11,10 @@ let langevitour = (function(){
 
 /**** Utility functions ****/
 
+function has(object, name) {
+    return object.hasOwnProperty(name);
+}
+
 function elementVisible(el) {
     //https://stackoverflow.com/a/22480938
     
@@ -79,15 +83,14 @@ function zeroMat(n,m) { return times(n,zeros,m); }
 
 function matMulInto(result, A, B) {
     let a = A.length, b = A[0].length, c = B[0].length;
+
     for(let i=0;i<a;i++)
-    for(let k=0;k<c;k++)
-        result[i][k] = 0;
-    
-    for(let i=0;i<a;i++)
-    for(let j=0;j<b;j++)
-    for(let k=0;k<c;k++)
-        result[i][k] += A[i][j] * B[j][k];
-    return result;
+    for(let k=0;k<c;k++) {
+        let s = 0;
+        for(let j=0;j<b;j++)
+            s += A[i][j] * B[j][k];
+        result[i][k] = s;
+    }
 }
 
 function matMul(A,B) {
@@ -98,15 +101,14 @@ function matMul(A,B) {
 
 function matTcrossprodInto(result, A, B) {
     let a = A.length, b = A[0].length, c = B.length;
+
     for(let i=0;i<a;i++)
-    for(let k=0;k<c;k++)
-        result[i][k] = 0;
-    
-    for(let i=0;i<a;i++)
-    for(let j=0;j<b;j++)
-    for(let k=0;k<c;k++)
-        result[i][k] += A[i][j] * B[k][j];
-    return result;
+    for(let k=0;k<c;k++) {
+        let s = 0;
+        for(let j=0;j<b;j++) 
+             s += A[i][j] * B[k][j];
+        result[i][k] = s;
+    }
 }
 
 function matTcrossprod(A,B) {
@@ -202,18 +204,28 @@ function removeSpin(motion, proj) {
 }
 
 function gradRepulsion(proj, X, power, fineScale) {
-    let iters = 1000;
+    /* 
+    Ideally we would perform repulsion between all pairs of points. However this would be O(n^2). Instead we only do a fraction of this -- it's a stochastic gradient.
+    
+    Unfortunately this means there is a little jitter even if heat is completely turned off. 
+    */
+    
+    let iters = 5000;
+    
     let m = proj.length, n = proj[0].length;
-    let p = [ ];
+    let p = Array(m);
     let grad = zeroMat(m,n);
     
+    let off1 = randInt(X.length);
+    let off2 = randInt(X.length);
     for(let i=0;i<iters;i++) {
-        let a = vecSub(X[randInt(X.length)],X[randInt(X.length)]);
+        //let a = vecSub(X[randInt(X.length)],X[randInt(X.length)]);
+        let a = vecSub(X[(i+off1)%X.length],X[(i+off2)%X.length]);
         
         for(let j=0;j<m;j++)
             p[j] = vecDot(a, proj[j]);
         
-        let scale = (vecDot(p,p)+fineScale)**(power-1);
+        let scale = (vecDot(p,p)+fineScale*fineScale)**(power-1);
         
         for(let j=0;j<m;j++)
         for(let k=0;k<n;k++)
@@ -301,7 +313,9 @@ let template = `<div>
             <div><b><a href="https://logarithmic.net/langevitour/">langevitour</a></b></div>
             <div class=infoBoxInfo></div>
             <div>Projection:</div>
-            <textarea class=infoBoxProj rows=6 cols=30 wrap=off></textarea>
+            <textarea class=infoBoxProj rows=5 cols=30 wrap=off onclick="this.select()"></textarea>
+            <div><br>State:</div>
+            <textarea class=infoBoxState rows=5 cols=30 wrap=on onfocus="this.setSelectionRange(0,this.value.length,'backward');" spellcheck=false></textarea>
         </div>
     </div>
 
@@ -323,7 +337,7 @@ let template = `<div>
         
         ><div class=box>Damping<input type=range min=-3 max=3 step=0.01 value=0 class=dampInput></div
         
-        ><div class=box>Heat<input class=tempCheckbox type=checkbox checked><input type=range min=-2 max=4 step=0.01 value=0 class=tempInput></div
+        ><div class=box>Heat<input class=heatCheckbox type=checkbox checked><input type=range min=-2 max=4 step=0.01 value=0 class=heatInput></div
         
         ><br/
         
@@ -331,6 +345,7 @@ let template = `<div>
         Point repulsion
         <select class=repulsionSelect value=none>
             <option value=none>none</option>
+            <option value=ultralocal>ultralocal</option>
             <option value=local>local</option>
             <option value=pca>PCA</option>
             <option value=outlier>outlier</option>
@@ -342,6 +357,7 @@ let template = `<div>
 </div>`;
 
 let repulsionTable = {
+    "ultralocal": {amount:0.01, power:-1, fineScale:0.05},
     "local": {amount:0.5, power:0, fineScale:0.01},
     "pca": {amount:0.5, power:1, fineScale:0},
     "outlier": {amount:5, power:2, fineScale:0},
@@ -362,6 +378,9 @@ class Langevitour {
         this.shadow.innerHTML = template;
         this.canvas = this.get('canvas');
         this.overlay = this.get('overlay');
+        
+        // Allow this to be found using document.getElementById(name).langevitour
+        this.container.langevitour = this;
         
         this.X = null;
         this.n = 0;
@@ -440,6 +459,8 @@ class Langevitour {
                 matStr += '))\nprojected <- as.matrix(X) %*% projection';
                 
                 this.get('infoBoxProj').value = matStr;
+                
+                this.get('infoBoxState').value = JSON.stringify(this.getState(), null, 4);
             
                 this.get('infoBoxInfo').innerHTML = `<p>${this.X.length.toLocaleString("en-US")} points.</p>`;
             }        
@@ -461,9 +482,13 @@ class Langevitour {
      * @param {Array.<number>} [data.group] Group number for each point. Integer values starting from 0.
      * @param {Array.<string>} [data.levels] Group names for each group in data.group.
      * @param {Array.<Array.<number>>} [data.extraAxes] A matrix with each column defining a projection of interest.
-     * @param {Array.<number>} [data.center] Center to restore original units of extra axes. Scaling is assumed already included in data.extraAxes.
+     * @param {Array.<number>} [data.extraAxesCenter] Center to restore original units of extra axes. Scaling is assumed already included in data.extraAxes.
      * @param {Array.<string>} [data.extraAxesNames] A name for each extra axis.
+     * @param {Array.<number>} [data.lineFrom] Rows of X to draw lines from.
+     * @param {Array.<number>} [data.lineTo] Rows of X to draw lines to.
      * @param {Array.<string>} [data.axisColors] CSS colors for each variable and then optionally for each extra axis.
+     * @param {Array.<string>} [data.levelColors] CSS colors for each level.
+     * @param {number} [data.colorVariation] Amount of brightness variation of points, between 0 and 1.
      * @param {number} [data.pointSize] Radius of points in pixels.
      */
     renderValue(data) {
@@ -482,14 +507,21 @@ class Langevitour {
         
         // Shuffling is not optional.
         this.permutor = permutation(this.n);
-        this.X = this.permutor.map(i => data.X[i]);
+        this.unpermutor = Array(this.n);
+        for(let i=0;i<this.n;i++) 
+            this.unpermutor[this.permutor[i]] = i;
         
+        this.X = this.permutor.map(i => data.X[i]);
+                
         if (!data.rownames || data.rownames.length == 0) 
             this.rownames = null;
         else
             this.rownames = this.permutor.map(i => data.rownames[i]);
         
         this.colnames = data.colnames;
+        
+        this.lineFrom = (data.lineFrom || []).map(i => this.unpermutor[i]);
+        this.lineTo = (data.lineTo || []).map(i => this.unpermutor[i]);
         
         this.axes = [ ];
         
@@ -528,27 +560,34 @@ class Langevitour {
         this.group = this.permutor.map(i => data.group[i]);
         
         let nGroups = this.levels.length;
+
+        this.levelColors = (data.levelColors || []).slice();
+        
+        // Pick a palette if not given
+        for(let i=this.levelColors.length;i<nGroups;i++) {
+            let angle = (i+1/3)/nGroups;
+            let value = 104;
+            let r = value*(1+Math.cos(angle*Math.PI*2));
+            let g = value*(1+Math.cos((angle+1/3)*Math.PI*2));
+            let b = value*(1+Math.cos((angle+2/3)*Math.PI*2));
+            this.levelColors[i] = d3.rgb(r,g,b).formatHex();
+        }
+
+        // Point colors are given a small back-to-front brightness gradient,
+        // to add some variation and give a pseudo-3D effect.
+        let colorVariation = data.colorVariation == null ? 0.3 : data.colorVariation;
         this.fills = [ ];
         this.fillsFaded = [ ];
         for(let i=0;i<this.n;i++) {
-            let angle = (this.group[i]+1/3)/nGroups;
-            let value = 80+48*i/this.n;
-            let r = hexByte( value*(1+Math.cos(angle*Math.PI*2)) );
-            let g = hexByte( value*(1+Math.cos((angle+1/3)*Math.PI*2)) );
-            let b = hexByte( value*(1+Math.cos((angle+2/3)*Math.PI*2)) );
-            this.fills[i] = '#'+r+g+b;;
-            this.fillsFaded[i] = '#'+r+g+b+'1f';
+            let color = d3.color(this.levelColors[this.group[i]]);
+            let value = 1+colorVariation*(i/this.n*2-1);
+            color.r *= value;
+            color.g *= value;
+            color.b *= value;
+            this.fills[i] = color.formatHex();
+            this.fillsFaded[i] = this.fills[i] + '1f';
         }
         
-        this.levelColors = [ ];
-        for(let i=0;i<nGroups;i++) {
-            let angle = (i+1/3)/nGroups;
-            let value = 104;
-            let r = hexByte( value*(1+Math.cos(angle*Math.PI*2)) );
-            let g = hexByte( value*(1+Math.cos((angle+1/3)*Math.PI*2)) );
-            let b = hexByte( value*(1+Math.cos((angle+2/3)*Math.PI*2)) );
-            this.levelColors[i] = '#'+r+g+b;
-        }
 
         
         this.labelData = [ ];
@@ -568,7 +607,7 @@ class Langevitour {
                 vec: vec,
                 color: this.levelColors[i],
                 active: true,
-                x:2, y:0, //Outside plot area will be reposition in configure()
+                x:2, y:0, //Outside plot area will be repositioned in configure()
             });
         }
 
@@ -578,9 +617,9 @@ class Langevitour {
                 axis: i,
                 label: this.axes[i].name, 
                 vec: this.axes[i].unit,
-                color: '#000',
+                color: this.axes[i].color || '#000000',
                 active: true,
-                x:2, y:0, //Outside plot area will be reposition in configure()
+                x:2, y:0, //Outside plot area will be repositioned in configure()
             });
         }
         
@@ -599,7 +638,10 @@ class Langevitour {
             this.running = true;
         }
         
-        this.configure();        
+        this.configure();
+        
+        if (has(data,"state"))
+            this.setState(data.state);    
     }
     
     /** 
@@ -746,6 +788,87 @@ class Langevitour {
         refreshLabels();
     }
     
+    /**
+     * Get the current widget state.
+     */
+    getState() {
+        let result = { };
+        
+        result.axesOn = this.get('axesCheckbox').checked;
+        result.heatOn = this.get('heatCheckbox').checked;
+        result.pointRepulsionType = this.get('repulsionSelect').value;
+        result.labelAttractionOn = this.get('labelCheckbox').checked;
+        
+        result.damping = Number(this.get('dampInput').value);
+        result.heat = Number(this.get('heatInput').value);
+        result.pointRepulsion = Number(this.get('repulsionInput').value);
+        result.labelAttraction = Number(this.get('labelInput').value);
+        
+        result.labelInactive = [ ];
+        result.labelPos = { };
+        for(let item of this.labelData) {
+            if (!item.active)
+               result.labelInactive.push(item.label);
+            if (item.x < 1)
+               result.labelPos[ item.label ] = [ item.x, item.y ];
+        }
+        
+        result.projection = this.proj;
+        
+        return result;
+    }
+    
+    /**
+     * Set the widget state. 
+     *
+     * Can be used to restore a previous state of the widget obtained with getState().
+     *
+     * @param state A JSON string or an Object containing the desired state.
+     */
+    setState(state) {
+        if (typeof state == "string")
+            state = JSON.parse(state);
+            
+        if (!state)
+            return;
+    
+        if (has(state,'axesOn'))
+            this.get('axesCheckbox').checked = state.axesOn;
+        if (has(state,'heatOn'))
+            this.get('heatCheckbox').checked = state.heatOn;
+        if (has(state,'pointRepulsionType'))
+            this.get('repulsionSelect').value = state.pointRepulsionType;
+        if (has(state,'labelAttractionOn'))
+            this.get('labelCheckbox').checked = state.labelAttractionOn;
+        
+        if (has(state,'damping'))
+            this.get('dampInput').value = state.damping;
+        if (has(state,'heat'))
+            this.get('heatInput').value = state.heat;
+        if (has(state,'pointRepulsion'))
+            this.get('repulsionInput').value = state.pointRepulsion;
+        if (has(state,'labelAttraction'))
+            this.get('labelInput').value = state.labelAttraction;
+
+        if (has(state,'labelInactive'))
+        for(let item of this.labelData)
+            item.active = !state.labelInactive.includes(item.label);
+        
+        if (has(state,'labelPos'))
+        for(let item of this.labelData)
+        if (has(state.labelPos,item.label)) {
+            item.x = state.labelPos[item.label][0];
+            item.y = state.labelPos[item.label][1];
+        } else {
+            item.x = 1;
+        }
+        
+        if (has(state,'projection'))
+            this.proj = Array.from(state.projection.map(item => Array.from(item)));
+
+        this.configure();        
+    }
+    
     scheduleFrame() {
         window.requestAnimationFrame(this.doFrame.bind(this))
     }
@@ -807,9 +930,31 @@ class Langevitour {
             ctx.stroke();
         }
 
-        // Points
+        // Projection
         matTcrossprodInto(this.xy, this.proj, this.X);
+        
+        // Lines
+        for(let i=0;i<this.lineFrom.length;i++) {
+            let a = this.lineFrom[i],
+                b = this.lineTo[i];
+            
+            if (!levelActive[this.group[a]] || !levelActive[this.group[b]])
+                continue;
+            
+            // Make short lines darker so they have equal visual weight to longer lines
+            // Clipped for d < 1/4, d > 1
+            let d = Math.sqrt( (this.xy[0][a]-this.xy[0][b])**2 + (this.xy[1][a]-this.xy[1][b])**2 );
+            d = Math.max(1/4,Math.min(1,d));
+            ctx.strokeStyle = '#000000'+hexByte(128/(4*d));
+            
+            ctx.beginPath();
+            ctx.moveTo(this.xScaleClamped(this.xy[0][a]), this.yScaleClamped(this.xy[1][a]));
+            ctx.lineTo(this.xScaleClamped(this.xy[0][b]), this.yScaleClamped(this.xy[1][b]));
+            ctx.stroke();
+        }
 
+        // Points
+        
         for(let i=0;i<this.n;i++)
         if (levelActive[this.group[i]])
             this.fillsFrame[i] = this.fills[i];
@@ -957,10 +1102,10 @@ class Langevitour {
     
     compute(realElapsed) {
         let damping =     0.2  *Math.pow(10, this.get('dampInput').value);
-        let temperature = 0.1  *Math.pow(10, this.get('tempInput').value);
+        let heat =        0.1  *Math.pow(10, this.get('heatInput').value);
         let repulsion =   1.0  *Math.pow(10, this.get('repulsionInput').value);
         let attraction =  1.0  *Math.pow(10, this.get('labelInput').value);
-        let doTemp = this.get('tempCheckbox').checked;
+        let doHeat = this.get('heatCheckbox').checked;
         let whatRepulsion = this.get('repulsionSelect').value;
         let doAttraction = this.get('labelCheckbox').checked;
 
@@ -985,7 +1130,7 @@ class Langevitour {
         let velKeep = Math.exp(-elapsed*damping);
         matScaleInto(vel, velKeep);
 
-        if (doTemp) {
+        if (doHeat) {
             // Damping reduces the variance * velKeep^2
             // We need to add velReplaceVar * desired steady state variance of temperature
             
@@ -994,7 +1139,7 @@ class Langevitour {
             
             let velReplaceVar = 1 - velKeep*velKeep;        
             let noise = times(proj.length, times, this.m,
-                jStat.normal.sample, 0, Math.sqrt(temperature*velReplaceVar));
+                jStat.normal.sample, 0, Math.sqrt(heat*velReplaceVar));
             
             noise = removeSpin(noise, proj);
             
@@ -1016,15 +1161,17 @@ class Langevitour {
             let x = label.x;
             let y = label.y;
             if (x <= -1 || y <= -1 || x >= 1 || y >= 1) continue;
+            if (label.type == 'level' && !levelActive[label.level]) continue;
             let adjustment = 4*(x*x+y*y);
             vel[0] = vecAdd(vel[0], vecScale(label.vec, x*adjustment*attraction));
             vel[1] = vecAdd(vel[1], vecScale(label.vec, y*adjustment*attraction));
         }
         
         
-        let newProj = matAdd(proj, matScale(vel, elapsed));
-        
         // Nuke inactive axes
+        // - remove from velocity
+        // - gradually remove from position
+        
         let inactive = [ ];
         for(let item of this.labelData)
         if (item.type == 'axis' && !item.active)
@@ -1034,6 +1181,9 @@ class Langevitour {
         let anyDropped = false;
         
         if (inactive.length && !tooMany) {
+            // How fast inactive axes are removed
+            let nuke_amount = Math.min(2, 1/elapsed);
+        
             let { u, v, q } = SVDJS.SVD(matTranspose(inactive));
             let maxQ = Math.max(...q);
             u = matTranspose(u);
@@ -1044,13 +1194,19 @@ class Langevitour {
                     continue;
                 }
                 let vec = u[i];
-                for(let j=0;j<2;j++)
-                    newProj[j] = vecSub(newProj[j], vecScale(vec, vecDot(vec,newProj[j])));
+                for(let j=0;j<2;j++) {
+                    vel[j] = vecSub(vel[j], 
+                        vecScale(vec, vecDot(vec, vel[j]) + nuke_amount*vecDot(vec, proj[j])))
+                }
             }
         }
                 
         if (tooMany) this.computeMessage += 'Error: too many axes removed';
         if (anyDropped) this.computeMessage += 'Note: reduntant axes removed';
+
+
+        // Velocity step        
+        let newProj = matAdd(proj, matScale(vel, elapsed));
 
         // Project onto Stiefel manifold                
         let { u, v, q } = SVDJS.SVD(matTranspose(newProj));

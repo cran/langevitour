@@ -11,8 +11,14 @@ langevitour(
   center = NULL,
   scale = NULL,
   extraAxes = NULL,
+  lineFrom = NULL,
+  lineTo = NULL,
   axisColors = NULL,
+  levelColors = NULL,
+  colorVariation = 0.3,
   pointSize = 1,
+  subsample = NULL,
+  state = NULL,
   width = NULL,
   height = NULL,
   elementId = NULL
@@ -31,9 +37,21 @@ langevitour(
 
 \item{extraAxes}{A matrix with each column defining a projection of interest. The columns of \code{X \%*\% extraAxes} will be presented as extra "variables".}
 
+\item{lineFrom}{A vector of row numbers. Draw lines starting at these rows.}
+
+\item{lineTo}{A vector of row numbers. Draw lines ending at these rows.}
+
 \item{axisColors}{Character vector. Colors for each variable and then each extra axis.}
 
+\item{levelColors}{Character vector. Colors for each level of \code{group}.}
+
+\item{colorVariation}{Number between 0 and 1. Individual points are given slightly different brightnesses. How strong should this effect be?}
+
 \item{pointSize}{Point radius in pixels.}
+
+\item{subsample}{For speed, randomly subsample down to this many rows.}
+
+\item{state}{A JSON string, or an object that htmlwidgets will convert to the correct JSON. Initial widget state settings. The state of a widget can be obtained by pressing the "?" button. I am not going to guarantee that states will be compatible between versions of langevitour.}
 
 \item{width}{Width of widget.}
 
@@ -50,7 +68,9 @@ Make a Langevin Tour HTML widget, which can be used to explore high-dimensional 
 \details{
 To retain the original units on plot axes within the widget, use \code{center} and \code{scale} rather than altering X.
 
-langevitour will by default not scale variables individually. If you want this, use something like \code{scale=apply(X,2,sd)*4}.
+langevitour will by default not scale variables individually. If you want variables to be individually scaled, use something like \code{scale=apply(X,2,sd)*4}.
+
+In Javascript, the langevitour object can be obtained using \code{document.getElementById(elementId).langevitour}. For example you could have a button that sets the state of a widget using \code{document.getElementById(elementId).langevitour.setState(desiredState)}.
 }
 \examples{
 library(palmerpenguins)
