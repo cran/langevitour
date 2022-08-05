@@ -1,3 +1,16 @@
+
+# langevitour 0.5
+
+* Improved widget visibilty detection, should work in slideshows.
+* Hopefully fix weird shrinkage on resizing.
+* Crisp HiDPI and zoomed drawing.
+* Now call point repulsions "guide", new guides added.
+* Reduce default damping.
+* Add input checking.
+* Hidden groups now completely hidden.
+* Hidden groups hidden from legend.
+* Faster rug drawing.
+
 # langevitour 0.4
 
 * Fix README.md, remove redundant brackets.

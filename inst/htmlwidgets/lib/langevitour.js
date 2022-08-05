@@ -16,17 +16,20 @@ function has(object, name) {
 }
 
 function elementVisible(el) {
-    //https://stackoverflow.com/a/22480938
-    
-    let rect = el.getBoundingClientRect();
-    let elemTop = rect.top;
-    let elemBottom = rect.bottom;
+    // Check several ways of hiding an element or its parents.
+    // Hopefully this will work for slideshows.
+    let parent = el;
+    while(parent != null) {
+        let style = window.getComputedStyle(parent);
+        if (style.opacity <= 0 || style.display == "none" || style.visibility != "visible")
+            return false;
+        parent = parent.parentElement;
+    }
 
-    // Only completely visible elements return true:
-    //return (elemTop >= 0) && (elemBottom <= window.innerHeight);
-    
-    // Partially visible elements return true:
-    return elemTop < window.innerHeight && elemBottom >= 0;
+    //https://stackoverflow.com/a/22480938    
+    let rect = el.getBoundingClientRect();
+    return rect.top < window.innerHeight && rect.bottom >= 0 &&
+           rect.left < window.innerWidth && rect.right >= 0;
 }
 
 function randInt(n) { 
@@ -149,6 +152,19 @@ function matTranspose(A) {
     return result;
 }
 
+function removeSpin(motion, proj) {
+    /* Ensure each row of motion is in the null space of the rows of proj.
+       proj rows are assumed to be orthonormal. 
+       
+       This is used to avoid adding random spin to the projection. */
+    let result = [...motion];
+    for(let i=0;i<result.length;i++)
+    for(let j=0;j<proj.length;j++)
+        result[i] = vecSub(result[i],vecScale(proj[j],vecDot(motion[i],proj[j])));
+    
+    return result;
+}
+
 
 /**** Projection pursuit gradients ****/
 
@@ -193,17 +209,7 @@ function gradRepulsion(proj, X, power, fineScale) {
 }
 */
 
-function removeSpin(motion, proj) {
-    let rotProj = matMul([[0,-1/Math.sqrt(2)],[1/Math.sqrt(2),0]], proj);
-    let dot = 0;
-    for(let i=0;i<proj.length;i++)
-    for(let j=0;j<proj[0].length;j++)
-        dot += motion[i][j]*rotProj[i][j];
-    
-    return matAdd(motion, matScale(rotProj, -dot));
-}
-
-function gradRepulsion(proj, X, power, fineScale) {
+function gradRepulsion(proj, X, power, fineScale, strength) {
     /* 
     Ideally we would perform repulsion between all pairs of points. However this would be O(n^2). Instead we only do a fraction of this -- it's a stochastic gradient.
     
@@ -219,7 +225,6 @@ function gradRepulsion(proj, X, power, fineScale) {
     let off1 = randInt(X.length);
     let off2 = randInt(X.length);
     for(let i=0;i<iters;i++) {
-        //let a = vecSub(X[randInt(X.length)],X[randInt(X.length)]);
         let a = vecSub(X[(i+off1)%X.length],X[(i+off2)%X.length]);
         
         for(let j=0;j<m;j++)
@@ -232,10 +237,69 @@ function gradRepulsion(proj, X, power, fineScale) {
             grad[j][k] += a[k] * p[j] * scale;
     }
     
-    matScaleInto(grad, -2/iters);
-    
-    return removeSpin( grad, proj );
+    matScaleInto(grad, -2/iters * strength);    
+    return grad;
 }
+
+
+function gradCentralRepulsion(proj, X, power, fineScale, strength) {
+    let m = proj.length, n = proj[0].length;
+    let p = Array(m);
+    let grad = zeroMat(m,n);
+    
+    for(let i=0;i<X.length;i++) {
+        let a = X[i];
+        
+        for(let j=0;j<m;j++)
+            p[j] = vecDot(a, proj[j]);
+        
+        let scale = (vecDot(p,p)+fineScale*fineScale)**(power-1);
+        
+        for(let j=0;j<m;j++)
+        for(let k=0;k<n;k++)
+            grad[j][k] += a[k] * p[j] * scale;
+    }
+    
+    matScaleInto(grad, -2/X.length * strength);
+    
+    return grad;
+}
+
+
+function gradSparseRank(proj, strength) {
+    let m = proj.length, n = proj[0].length;
+    let mag2 = zeros(n);
+    for(let i=0;i<m;i++)
+        for(let j=0;j<n;j++)
+            mag2[j] += proj[i][j]**2;
+            
+    let order = [...Array(n).keys()];
+    order.sort((i,j) => mag2[j]-mag2[i]);
+    
+    let grad = zeroMat(m,n);
+    for(let j=0;j<3;j++)
+        for(let i=0;i<m;i++)
+            grad[i][order[j]] = -strength*proj[i][order[j]];
+    
+    return grad;
+}
+
+
+
+
+let gradTable = {
+    //Not quite working well.
+    //Better to manually hide all but 3 axes.
+    //"sparse": (proj,X) => gradSparseRank(proj, 0.1),
+
+    "ultralocal": (proj,X) => gradRepulsion(proj,X,-1,0.05,0.01),
+    "local": (proj,X) => gradRepulsion(proj,X,0,0.01,0.5),
+    "pca": (proj,X) => gradRepulsion(proj,X,1,0,0.5),
+    "outlier": (proj,X) => gradRepulsion(proj,X,2,0,5),
+    
+    "push": (proj,X) => gradCentralRepulsion(proj,X, 0.5, 0.01,  0.5),
+    "pull": (proj,X) => gradCentralRepulsion(proj,X, 0.5, 0.01, -0.2),    
+};
 
 
 /**** Main class ****/
@@ -342,26 +406,28 @@ let template = `<div>
         ><br/
         
         ><div class=box>
-        Point repulsion
-        <select class=repulsionSelect value=none>
-            <option value=none>none</option>
-            <option value=ultralocal>ultralocal</option>
-            <option value=local>local</option>
-            <option value=pca>PCA</option>
-            <option value=outlier>outlier</option>
+        Guide
+        <select class=guideSelect value=none>
+            <optgroup label="Explore">
+                <option value=none title="Look at completely random projections.">free</option>
+            </optgroup>
+            <optgroup label="Layout">
+                <option value=ultralocal title="Try to ensure small things don't overlap. May be unstable.">ultralocal</option>
+                <option value=local title="Try to ensure things don't overlap. A good default.">local</option>
+                <option value=pca title="Equivalent to Principal Components Analysis.">PCA</option>
+                <option value=outlier title="Find projections with some points very far from other points.">outlier</option>
+            </optgroup>
+            <optgroup label="Central force">
+                <option value=push title="Push points away from the center.">push</option>
+                <option value=pull title="Pull points towards the center.">pull</option>
+            </optgroup>
         </select> 
-        <input type=range min=-2 max=2 step=0.01 value=0 class=repulsionInput></div
+        <input type=range min=-2 max=2 step=0.01 value=0 class=guideInput></div
         
         ><div class=box>Label attraction<input class=labelCheckbox type=checkbox checked><input type=range min=-3 max=1 step=0.01 value=0 class=labelInput></div
     ></div>
 </div>`;
 
-let repulsionTable = {
-    "ultralocal": {amount:0.01, power:-1, fineScale:0.05},
-    "local": {amount:0.5, power:0, fineScale:0.01},
-    "pca": {amount:0.5, power:1, fineScale:0},
-    "outlier": {amount:5, power:2, fineScale:0},
-};
 
 /** Class to create and animate a Langevin Tour widget */
 class Langevitour {
@@ -372,9 +438,11 @@ class Langevitour {
      * @param {number} height Desired initial height of widget.
      */
     constructor(container, width, height) {
-        /* Set up elements in a shadow DOM to isolate from document style. */
+        // Set up elements in a shadow DOM to isolate from document style.
+        // The extra div seems necessary to avoid weird shrinkage with resizing.
         this.container = container;
-        this.shadow = this.container.attachShadow({mode: 'open'});
+        this.container.innerHTML = "<div></div>";
+        this.shadow = this.container.firstChild.attachShadow({mode: 'open'});
         this.shadow.innerHTML = template;
         this.canvas = this.get('canvas');
         this.overlay = this.get('overlay');
@@ -572,7 +640,7 @@ class Langevitour {
             let b = value*(1+Math.cos((angle+2/3)*Math.PI*2));
             this.levelColors[i] = d3.rgb(r,g,b).formatHex();
         }
-
+        
         // Point colors are given a small back-to-front brightness gradient,
         // to add some variation and give a pseudo-3D effect.
         let colorVariation = data.colorVariation == null ? 0.3 : data.colorVariation;
@@ -588,7 +656,6 @@ class Langevitour {
             this.fillsFaded[i] = this.fills[i] + '1f';
         }
         
-
         
         this.labelData = [ ];
         
@@ -610,7 +677,7 @@ class Langevitour {
                 x:2, y:0, //Outside plot area will be repositioned in configure()
             });
         }
-
+        
         for(let i=0;i<this.axes.length;i++) {
             this.labelData.push({ 
                 type: 'axis',
@@ -665,14 +732,14 @@ class Langevitour {
     configure() {
         if (!this.running) return;
         
-        this.canvas.width = this.width;
+        this.canvas.style.width = this.width+'px';
         this.overlay.style.width = this.width+'px';
-
+        
         // Scrollbars will appear if very small
         let controlHeight = this.get('controlDiv').offsetHeight + 5;
         this.size = Math.max(100, Math.min(this.width-100, this.height-controlHeight));
-
-        this.canvas.height = this.size;
+        
+        this.canvas.style.height = this.size+'px';
         this.overlay.style.height = this.size+'px';
         
         this.xScale = d3.scaleLinear()
@@ -796,12 +863,12 @@ class Langevitour {
         
         result.axesOn = this.get('axesCheckbox').checked;
         result.heatOn = this.get('heatCheckbox').checked;
-        result.pointRepulsionType = this.get('repulsionSelect').value;
+        result.guideType = this.get('guideSelect').value;
         result.labelAttractionOn = this.get('labelCheckbox').checked;
         
         result.damping = Number(this.get('dampInput').value);
         result.heat = Number(this.get('heatInput').value);
-        result.pointRepulsion = Number(this.get('repulsionInput').value);
+        result.guide = Number(this.get('guideInput').value);
         result.labelAttraction = Number(this.get('labelInput').value);
         
         result.labelInactive = [ ];
@@ -836,8 +903,14 @@ class Langevitour {
             this.get('axesCheckbox').checked = state.axesOn;
         if (has(state,'heatOn'))
             this.get('heatCheckbox').checked = state.heatOn;
+        
+        // Old    
         if (has(state,'pointRepulsionType'))
-            this.get('repulsionSelect').value = state.pointRepulsionType;
+            this.get('guideSelect').value = state.pointRepulsionType;
+        // New
+        if (has(state,'guideType'))
+            this.get('guideSelect').value = state.guideType;
+        
         if (has(state,'labelAttractionOn'))
             this.get('labelCheckbox').checked = state.labelAttractionOn;
         
@@ -845,8 +918,14 @@ class Langevitour {
             this.get('dampInput').value = state.damping;
         if (has(state,'heat'))
             this.get('heatInput').value = state.heat;
+        
+        // Old
         if (has(state,'pointRepulsion'))
-            this.get('repulsionInput').value = state.pointRepulsion;
+            this.get('guideInput').value = state.pointRepulsion;
+        // New
+        if (has(state,'guide'))
+            this.get('guideInput').value = state.guide;
+        
         if (has(state,'labelAttraction'))
             this.get('labelInput').value = state.labelAttraction;
 
@@ -879,7 +958,7 @@ class Langevitour {
         let elapsed = time - this.lastTime;
         this.lastTime = time;
         
-        if (this.X == null || !elementVisible(this.canvas)) {
+        if (this.X == null || !elementVisible(this.container)) {
             // We aren't visible. Wait a while.
             window.setTimeout(this.scheduleFrame.bind(this), 100);
             return;
@@ -905,9 +984,16 @@ class Langevitour {
             levelActive[item.level] = item.active;
                 
         this.overlay.style.opacity = this.mousing?1:0;
-
+        
+        // Setup canvas and get context
+        // Adjust for HiDPI screens and zoom level
+        // see https://developer.mozilla.org/en-US/docs/Web/API/Window/devicePixelRatio
+        let ratio = window.devicePixelRatio;
+        this.canvas.width = Math.floor(this.width * ratio);
+        this.canvas.height = Math.floor(this.size * ratio);
         let ctx = this.canvas.getContext("2d");
-        ctx.clearRect(0,0,this.width,this.height);
+        ctx.scale(ratio, ratio);
+        ctx.clearRect(0,0,this.width,this.size);
         
         let rx = this.xScale.range(), ry = this.yScale.range();
         ctx.strokeStyle = '#000';
@@ -955,37 +1041,37 @@ class Langevitour {
 
         // Points
         
+        // Default to group colors
         for(let i=0;i<this.n;i++)
-        if (levelActive[this.group[i]])
             this.fillsFrame[i] = this.fills[i];
-        else
-            this.fillsFrame[i] = this.fillsFaded[i];
         
+        // If we're mousing over a group, gray the other levels
         if (selected && selected.type == 'level' && levelActive[selected.level]) {
             for(let i=0;i<this.n;i++) {
                 if (this.group[i] != selected.level)
-                if (levelActive[this.group[i]])
-                    this.fillsFrame[i] = '#bbbbbbff';
-                else
-                    this.fillsFrame[i] = '#bbbbbb1f';
+                    this.fillsFrame[i] = '#bbbbbb';
             }
         }
         
-        if (selected && selected.type == 'axis') {
+        // If we're mousing over an axis, color by position on axis
+        if (selectedAxis != null) {
             for(let i=0;i<this.n;i++) {
                 let c = this.axes[selectedAxis].proj[i];
-                c = Math.tanh(c * 2);                                                                    // Hmm
-                this.fillsFrame[i] = d3.interpolateViridis(c*0.5+0.5) + (levelActive[this.group[i]]?"":"1f");
+                c = Math.tanh(c * 2);   // Extreme values compressed so -1<c<1
+                this.fillsFrame[i] = d3.interpolateViridis(c*0.5+0.5);
             }
         }
         
+        // Draw points that aren't hidden
         let size = this.pointSize;
         for(let i=0;i<this.n;i++) {
-            ctx.fillStyle = this.fillsFrame[i];
-            ctx.fillRect(this.xScaleClamped(this.xy[0][i])-size, this.yScaleClamped(this.xy[1][i])-size, size*2, size*2);
+            if (levelActive[this.group[i]]) {
+                ctx.fillStyle = this.fillsFrame[i];
+                ctx.fillRect(this.xScaleClamped(this.xy[0][i])-size, this.yScaleClamped(this.xy[1][i])-size, size*2, size*2);
+            }
         }
         
-        // Rug
+        // If we're mousing over an axis, draw a rug for the axis
         if (showAxes && selectedAxis != null) {
             //ctx.strokeStyle = '#00000022';
             let xProj = vecDot(this.proj[0], this.axes[selectedAxis].unit);
@@ -996,18 +1082,23 @@ class Langevitour {
                 -vecDot(this.proj[0], this.axes[selectedAxis].unit) 
             ];
             ox = vecScale(ox, 0.05/Math.sqrt(vecDot(ox,ox)));
+                        
+            // Hack to speed up rug drawing by rounding positions, 
+            // then only drawing each position once.
+            let rug = {};
+            let rounding = this.size;
             for(let i=0;i<this.n;i++) {
                 if (!levelActive[this.group[i]]) continue;
-                
-                let valueProj = this.axes[selectedAxis].proj[i];
-                let p = [ 
-                    xProj * valueProj, 
-                    yProj * valueProj 
-                ];                
+                let proj = this.axes[selectedAxis].proj[i];
+                rug[ Math.round(proj*rounding)/rounding ] = this.fillsFrame[i];
+            }
+            
+            for(let [proj, fill] of Object.entries(rug)) {
+                let p = [ xProj*proj, yProj*proj ];                
                 let pA = vecAdd(p, ox);
                 let pB = vecAdd(p, vecScale(ox,-1));
                 
-                ctx.strokeStyle = this.fillsFrame[i];
+                ctx.strokeStyle = fill;//this.fillsFrame[i];
                 ctx.beginPath();
                 ctx.moveTo(this.xScaleClamped(pA[0]),this.yScaleClamped(pA[1]));
                 ctx.lineTo(this.xScaleClamped(pB[0]),this.yScaleClamped(pB[1]));
@@ -1085,15 +1176,17 @@ class Langevitour {
         }
         
         ctx.restore();
-
+        
         //Legend
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         ctx.font = '15px sans-serif';
         if (!this.mousing)
-        for(let i=0;i<this.levels.length;i++) {
+        for(let i=0,j=0;i<this.levels.length;i++)
+        if (levelActive[i]) {
             ctx.fillStyle = this.levelColors[i];
-            ctx.fillText(this.levels[i], this.size+10, 10+i*20);
+            ctx.fillText(this.levels[i], this.size+10, 11+j*20);
+            j++;
         }
         
         window.setTimeout(this.scheduleFrame.bind(this), 5);
@@ -1101,12 +1194,12 @@ class Langevitour {
     }
     
     compute(realElapsed) {
-        let damping =     0.2  *Math.pow(10, this.get('dampInput').value);
+        let damping =     0.1  *Math.pow(10, this.get('dampInput').value);
         let heat =        0.1  *Math.pow(10, this.get('heatInput').value);
-        let repulsion =   1.0  *Math.pow(10, this.get('repulsionInput').value);
+        let guide     =   1.0  *Math.pow(10, this.get('guideInput').value);
         let attraction =  1.0  *Math.pow(10, this.get('labelInput').value);
         let doHeat = this.get('heatCheckbox').checked;
-        let whatRepulsion = this.get('repulsionSelect').value;
+        let whatGuide = this.get('guideSelect').value;
         let doAttraction = this.get('labelCheckbox').checked;
 
         let levelActive = Array(this.levels.length).fill(true);
@@ -1146,12 +1239,11 @@ class Langevitour {
             matAddInto(vel, noise);
         }
 
-        if (whatRepulsion != 'none') {
+        if (whatGuide != 'none') {
             let activeX = this.X.filter((item,i) => levelActive[this.group[i]]);
             if (activeX.length) {
-                let options = repulsionTable[whatRepulsion];
-                let grad = gradRepulsion(proj, activeX, options.power, options.fineScale);
-                matScaleInto(grad, -1*options.amount*repulsion);
+                let grad = gradTable[whatGuide](proj, activeX);
+                matScaleInto(grad, -guide);
                 matAddInto(vel, grad);
             }
         }
