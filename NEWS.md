@@ -1,4 +1,15 @@
 
+# langevitour 0.6
+
+* Use TypeScript and webpack.
+* Support crosstalk.
+* Interface revamp.
+* Avoid rare divide by zero.
+* Line colors.
+* Ignore width and height provided by htmlwidgets, as this is wrong when the widget is scaled using a transformation (happens in revealjs presentations).
+* Directly manipulate projection with ctrl+drag.
+* Python package.
+
 # langevitour 0.5
 
 * Improved widget visibilty detection, should work in slideshows.
