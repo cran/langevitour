@@ -1,6 +1,6 @@
 Package: langevitour
 Title: Langevin Tour
-Version: 0.6
+Version: 0.7
 Authors@R: 
     person("Paul", "Harrison", , "pfh@logarithmic.net", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-3980-268X"))
@@ -16,8 +16,8 @@ RoxygenNote: 7.2.3
 VignetteBuilder: knitr
 Depends: R (>= 2.10)
 NeedsCompilation: yes
-Packaged: 2023-11-17 20:44:44 UTC; pfh
+Packaged: 2024-02-24 04:00:47 UTC; pfh
 Author: Paul Harrison [aut, cre] (<https://orcid.org/0000-0002-3980-268X>)
 Maintainer: Paul Harrison <pfh@logarithmic.net>
 Repository: CRAN
-Date/Publication: 2023-11-17 22:40:13 UTC
+Date/Publication: 2024-02-24 04:30:02 UTC
