@@ -1,6 +1,6 @@
 Package: langevitour
 Title: Langevin Tour
-Version: 0.7
+Version: 0.8.0
 Authors@R: 
     person("Paul", "Harrison", , "pfh@logarithmic.net", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-3980-268X"))
@@ -9,15 +9,16 @@ Description:
 URL: https://logarithmic.net/langevitour/
 BugReports: https://github.com/pfh/langevitour/issues/
 Imports: htmlwidgets, crosstalk, RANN, assertthat
-Suggests: shiny, palmerpenguins, knitr, rmarkdown
+Suggests: shiny, knitr, rmarkdown, GGally, DT, plotly, palmerpenguins,
+        tourr, geozoo, liminal, uwot
 License: MIT + file LICENSE
 Encoding: UTF-8
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.2
 VignetteBuilder: knitr
 Depends: R (>= 2.10)
 NeedsCompilation: yes
-Packaged: 2024-02-24 04:00:47 UTC; pfh
+Packaged: 2025-04-13 08:25:13 UTC; pfh
 Author: Paul Harrison [aut, cre] (<https://orcid.org/0000-0002-3980-268X>)
 Maintainer: Paul Harrison <pfh@logarithmic.net>
 Repository: CRAN
-Date/Publication: 2024-02-24 04:30:02 UTC
+Date/Publication: 2025-04-13 09:00:01 UTC

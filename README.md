@@ -2,7 +2,7 @@
 
 langevitour is an HTML widget that randomly tours projections of a high-dimensional dataset with an animated scatter-plot. The user can manipulate the plot to use specified axes, or turn on Guided Tour mode to perform [projection pursuit](https://en.wikipedia.org/wiki/Projection_pursuit), finding an informative projection of the data. Groups within the data can be hidden or shown, as can particular axes. Known projections of interest can be added as "extra axes" and also manipulated. The widget can be used from within R or Python, or included in a self-contained Rmarkdown document, or a Shiny app, or used directly from Javascript.
 
-langevitour is a twist on the "tour" concept from software such as [XGobi](http://lib.stat.cmu.edu/general/XGobi/), [GGobi](http://ggobi.org/), [tourr](http://ggobi.github.io/tourr/), [ferrn](https://huizezhang-sherry.github.io/ferrn/), [liminal](https://sa-lee.github.io/liminal/), [detourr](https://casperhart.github.io/detourr/index.html), [spinifex](https://nspyrison.github.io/spinifex/), and [loon.tour](https://great-northern-diver.github.io/loon.tourr/). The new element in langevitour is the use of [Langevin Dynamics](https://en.wikipedia.org/wiki/Langevin_dynamics) to generate the sequence of projections.
+langevitour is a twist on the "tour" concept from software such as [XGobi](https://lib.stat.cmu.edu/general/XGobi/), [GGobi](http://ggobi.org/), [tourr](http://ggobi.github.io/tourr/), [ferrn](https://huizezhang-sherry.github.io/ferrn/), [liminal](https://sa-lee.github.io/liminal/), [detourr](https://casperhart.github.io/detourr/index.html), [spinifex](https://nspyrison.github.io/spinifex/), and [loon.tour](https://great-northern-diver.github.io/loon.tourr/). The new element in langevitour is the use of [Langevin Dynamics](https://en.wikipedia.org/wiki/Langevin_dynamics) to generate the sequence of projections.
 
 langevitour is described in:
 
@@ -24,29 +24,43 @@ Further material:
 
 * [R examples](https://logarithmic.net/langevitour/articles/examples.html)
 
+* [Python example](https://colab.research.google.com/github/pfh/langevitour/blob/main/py/examples/langevitour.ipynb)
+
 * [Javascript example](https://pfh.github.io/langevitour/example.html)
 
-* [Python example](https://colab.research.google.com/github/pfh/langevitour/blob/main/py/examples/langevitour.ipynb)
+* [Observable Notebook example](https://observablehq.com/d/56b34c363af4dbca)
 
 <br>
 
 ## R installation
 
-```
-# Released version
+Release version:
+
+```r
 install.packages("langevitour")
 ```
 
-```
-# Development version
+Development version:
+
+```r
 remotes::install_github("pfh/langevitour")
+```
+
+To build the documentation site:
+
+```r
+install.packages(c("devtools", "pkgdown", "BiocManager"))
+devtools::install_dev_deps()
+BiocManager::install(c("airway", "org.Hs.eg.db", "edgeR", "limma"))
+
+pkgdown::build_site()
 ```
 
 ## R usage
 
 Example:
 
-```
+```r
 library(langevitour)
 
 data(zeiselPC)
@@ -64,12 +78,12 @@ langevitour(zeiselPC[,-1], zeiselPC$type)
 
 The minified and bundled version can be found in `inst/htmlwidgets/lib/langevitour-pack.js`.
 
-### ESM module and npm
+### ESM module with npm
 
 If using [node](https://nodejs.org/) and `npm` for development, langevitour can be added with:
 
-```
-npm install pfh/langevitour
+```bash
+npm install langevitour
 ```
 
 This provides the widget as a modern ESM module. In your HTML page you can import it with:
@@ -85,12 +99,26 @@ import { Langevitour } from "langevitour";
 
 You'll need to use a packager such as [parcel](https://parceljs.org/) or [webpack](https://webpack.js.org/) to use this. Please tell me if you run into any problems, I am fairly new to Javascript development. 
 
+### ESM module without npm
+
+To avoid using npm, you could use [skypack.dev](https://www.skypack.dev/). You will still need to serve your page with some sort of web-server, such as `python3 -m http.server`.
+
+```
+<script type="module">
+
+import { Langevitour } from "https://cdn.skypack.dev/langevitour";
+
+// ...
+</script>
+```
+
+[Here](https://observablehq.com/d/56b34c363af4dbca) is an example using skypack in an Observable Notebook.
 
 ### JavaScript development
 
 langevitour is written in TypeScript, which is compiled to JavaScipt, and then Webpack is used to produce a minified and bundled version. To make changes to the JavaScript side of langevitour, you will need to install [node](https://nodejs.org/), which includes the `npm` package manager. `npm` can then install the necessary build tools and dependencies. Build scripts are defined in `package.json` and used as below.
 
-```
+```bash
 git clone https://github.com/pfh/langevitour.git
 cd langevitour
 
@@ -116,7 +144,8 @@ For example, to define a new guide you would:
 
 <br>
 
-## Python installation 
+## Python installation
+
 ```bash
 pip install langevitour
 ```

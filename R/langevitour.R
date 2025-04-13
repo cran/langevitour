@@ -16,7 +16,7 @@
 #'
 #' @param center Center for each variable. If omitted, the column means will be used.
 #'
-#' @param scale Scale for each variable. Scale +/- center will be the range of guaranteed visible data. If omitted, a reasonable default will be chosen, equal for all variables. (The default is the largest singular value of the centered X times 2.5.)
+#' @param scale Scale for each variable (or a single value to apply to all variables). center +/- scale will be the range of guaranteed visible data. If omitted, a reasonable default will be chosen, equal for all variables. (The default is the largest singular value of the centered X times 2.5.)
 #'
 #' @param extraAxes A matrix with each column defining a projection of interest. The columns of \code{X \%*\% extraAxes} will be presented as extra "variables".
 #'
@@ -46,7 +46,9 @@
 #'
 #' @param link A SharedData object from the crosstalk package to share selections and filters with other htmlwidgets. The data in this object is not used, just the keys and group name. The rows of \code{link$origData()} should correspond to the rows of X.
 #'
-#' @param link_filter TRUE or FALSE. If using crosstalk, should hiding groups in langevitour also cause them to be filtered in linked widgets?
+#' @param linkFilter TRUE or FALSE. If using crosstalk, should hiding groups in langevitour also cause them to be filtered in linked widgets?
+#'
+#' @param enableControls TRUE or FALSE. If FALSE, all controls and interaction are disabled.
 #'
 #' @return An htmlwidget object.
 #'
@@ -70,13 +72,22 @@
 #'     scale=scale, pointSize=2,
 #'     state='{"guideType":"pca","labelInactive":["bill_length_mm"]}')
 #'
+#'
+#' # An example with controls and interaction disabled
+#'
+#' langevitour(
+#'     completePenguins[,-1], 
+#'     completePenguins$species, 
+#'     scale=scale, pointSize=2,
+#'     enableControls=FALSE)
+#'
 #' @export
 langevitour <- function(
         X, group=NULL, name=NULL, center=NULL, scale=NULL, 
         extraAxes=NULL, lineFrom=NULL, lineTo=NULL, lineColors=NULL,
         axisColors=NULL, levelColors=NULL, colorVariation=0.1, pointSize=1, subsample=NULL, 
         state=NULL, width=NULL, height=NULL, elementId=NULL,
-        link=NULL, link_filter=TRUE) {
+        link=NULL, linkFilter=TRUE, enableControls=TRUE) {
     
     # Ensure data is matrix
     
@@ -112,9 +123,6 @@ langevitour <- function(
         crosstalkKey <- link$key()
     }
     
-    assertthat::assert_that( assertthat::is.flag(link_filter) )
-    
-    
     # Check for problems (not exhaustive!)
     
     assertthat::assert_that( 
@@ -133,7 +141,9 @@ langevitour <- function(
         assertthat::noNA(group),
         assertthat::noNA(name),
         assertthat::noNA(lineFrom),
-        assertthat::noNA(lineTo))
+        assertthat::noNA(lineTo),
+        assertthat::is.flag(linkFilter),
+        assertthat::is.flag(enableControls))
     
     
     # Centering
@@ -232,9 +242,11 @@ langevitour <- function(
         
         crosstalkGroup=crosstalkGroup,
         crosstalkKey=crosstalkKey,
-        crosstalkWantFilter=link_filter,
+        crosstalkWantFilter=linkFilter,
         
-        state=state)
+        state=state,
+        
+        enableControls=enableControls)
     
     
     htmlwidgets::createWidget(
