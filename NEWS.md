@@ -1,4 +1,8 @@
 
+# langevitour 0.8.1
+
+* Rename src to ts, so "R CMD build ." doesn't add "NeedsCompilation: yes" to the DESCRIPTION.
+
 # langevitour 0.8.0
 
 * Option to disable controls.

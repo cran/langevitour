@@ -1,11 +1,11 @@
-decf2045179a187b9b4a472d98a457c0 *DESCRIPTION
+03f573f9b02d1c71d0a770abf1742171 *DESCRIPTION
 4a64b20497a10125442f2965ec775899 *LICENSE
 74c7ffbb60dfea79484d7bdcf9cc6c88 *NAMESPACE
-41f628f2460740b5ce637f72fb987332 *NEWS.md
+9ed0bc69230c4e41bf973a357844446d *NEWS.md
 be6df821bbdd0435feedb4fbea5218ac *R/data.R
 6de37181c2380db5d3167b6d071fabb4 *R/denoise.R
 dfa6e07b3bc63a5d8f102d662b6b97ad *R/langevitour.R
-10b591424298944b139a3d59d14c14e6 *README.md
+31d0b375b0608b32de29f873a93afe08 *README.md
 aa5e5a2cbfaea3d9b6cdbe378ac48cee *build/partial.rdb
 8b4311394913309c51de241276417a4d *build/vignette.rds
 b07c34ac057f88e055919337af2613ef *data/zeiselPC.rda
@@ -14,7 +14,7 @@ d0185cc4b83022a8d2b42d426f6aedb5 *inst/doc/usage.R
 4ff8b28b4045e74799ae548b792d3bd0 *inst/doc/usage.Rmd
 d9b890eba595dacf7da920b500a3b9cb *inst/doc/usage.html
 6494d744f0c10c7244b3a3a69072d27d *inst/htmlwidgets/langevitour.js
-437003a648543b69d692b4b3876acc79 *inst/htmlwidgets/langevitour.yaml
+7694336d9ff0d30de1a2eff105ecfddc *inst/htmlwidgets/langevitour.yaml
 ab8c3c2eece6c53f6c338fd172c5595b *inst/htmlwidgets/lib/langevitour-pack.js
 a4c3fb3189737effd578e19fed8a0324 *man/knnDenoise.Rd
 70c7eee356c91bf9b6dd5cea3a01b5e9 *man/langevitour-shiny.Rd

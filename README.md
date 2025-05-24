@@ -137,9 +137,9 @@ npm run build
 
 For example, to define a new guide you would:
 
-* Add a new gradient function in `src/guides.ts`. 
-* Add it to the `gradTable` in `src/guides.ts`.
-* Add it to the `guideSelect` select box in `src/langevitour.ts`.
+* Add a new gradient function in `ts/guides.ts`. 
+* Add it to the `gradTable` in `ts/guides.ts`.
+* Add it to the `guideSelect` select box in `ts/langevitour.ts`.
 * Run `npm run js-build` and the new guide should appear when you load `example.html`.
 
 <br>
